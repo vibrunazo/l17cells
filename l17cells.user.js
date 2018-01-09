@@ -3,7 +3,7 @@
 // @name           IITC plugin: Show Level 17 Cells
 // @author         vib
 // @category       Layer
-// @version        0.1.4
+// @version        0.1.5
 // @namespace      https://github.com/vibrunazo/l17cells
 // @updateURL      https://raw.githubusercontent.com/vibrunazo/l17cells/master/l17cells.meta.js
 // @downloadURL    https://raw.githubusercontent.com/vibrunazo/l17cells/master/l17cells.user.js
@@ -32,7 +32,7 @@ function wrapper(plugin_info) {
   //PLUGIN AUTHORS: writing a plugin outside of the IITC build environment? if so, delete these lines!!
   //(leaving them in place might break the 'About IITC' page or break update checks)
   plugin_info.buildName = 'l17cells';
-  plugin_info.dateTimeVersion = '20170109.000004';
+  plugin_info.dateTimeVersion = '20170109.010105';
   plugin_info.pluginId = 'l17cells';
   //END PLUGIN AUTHORS NOTE
 
@@ -40,6 +40,31 @@ function wrapper(plugin_info) {
 
   // PLUGIN START ////////////////////////////////////////////////////////
 
+  // use own namespace for plugin
+  window.plugin.showcells = function() {};
+
+  var input=document.createElement("input");
+  input.type="button";
+  input.value="Set Level";
+  input.onclick = setCellLevel;
+  input.setAttribute("style", "font-size:18px;position:absolute;top:120px;left:40px;color:black;cursor:pointer;pointer-events:all;z-index:2999;");
+  document.body.appendChild(input);
+
+  window.plugin.showcells.cellLevel = 17;
+
+  function setCellLevel()
+  {
+    var newCellLevel = prompt("Set a cell level", "17");
+    newCellLevel = parseInt(newCellLevel, 10);
+    //alert("new cell=" + newCellLevel);
+    if (newCellLevel !== isNaN && newCellLevel >= 2 && newCellLevel <= 20) {
+      //alert("Valid cell value");
+      window.plugin.showcells.cellLevel = newCellLevel;
+      window.plugin.regions.update();
+    } else {
+      alert("Invalid cell value. Must be a number between 2 and 20");
+    }
+  }
 
   // use own namespace for plugin
   window.plugin.regions = function() {};
@@ -167,7 +192,7 @@ function wrapper(plugin_info) {
           } else {
             return (1/3.0) * (1 - (4*(1-st)*(1-st)));
           }
-        }
+        };
 
         return [singleSTtoUV(st[0]), singleSTtoUV(st[1])];
       };
@@ -181,7 +206,7 @@ function wrapper(plugin_info) {
           } else {
             return 1 - 0.5 * Math.sqrt (1 - 3*uv);
           }
-        }
+        };
 
         return [singleUVtoST(uv[0]), singleUVtoST(uv[1])];
       };
@@ -206,7 +231,7 @@ function wrapper(plugin_info) {
           (ij[0]+offsets[0])/maxSize,
           (ij[1]+offsets[1])/maxSize
         ];
-      }
+      };
 
       // hilbert space-filling curve
       // based on http://blog.notdot.net/2009/11/Damn-Cool-Algorithms-Spatial-indexing-with-Quadtrees-and-Hilbert-Curves
@@ -445,7 +470,7 @@ function wrapper(plugin_info) {
       var result = window.plugin.regions.getSearchResult(match);
       if(result) query.addResult(result);
     });
-  }
+  };
 
   // rot and d2xy from Wikipedia
   window.plugin.regions.rot = function(n, x, y, rx, ry) {
@@ -470,7 +495,7 @@ function wrapper(plugin_info) {
       t /= 4;
     }
     return xy;
-  }
+  };
 
   window.plugin.regions.getSearchResult = function(match) {
     var faceId = window.plugin.regions.FACE_NAMES.indexOf(match[1]);
@@ -516,7 +541,7 @@ function wrapper(plugin_info) {
     result.bounds = L.latLngBounds(corners);
 
     return result;
-  }
+  };
 
   window.plugin.regions.update = function() {
 
@@ -553,8 +578,12 @@ function wrapper(plugin_info) {
 
     // centre cell
     var zoom = map.getZoom();
-    if (zoom >= 16) {  // 5 // ;;;;vib
-      var cellSize = zoom>=7 ? 17 : 17; // 6 : 4;  // ;;;;vib
+    var maxzoom = 16;
+    if (window.plugin.showcells.cellLevel <= 14) maxzoom = 10;
+    if (window.plugin.showcells.cellLevel <= 8) maxzoom = 5;
+    if (zoom >= maxzoom) {  // 5 // ;;;;
+      // var cellSize = zoom>=7 ? 6 : 4;  // ;;;;vib
+      var cellSize = window.plugin.showcells.cellLevel;
       var cell = S2.S2Cell.FromLatLng ( map.getCenter(), cellSize );
 
       drawCellAndNeighbors(cell);
