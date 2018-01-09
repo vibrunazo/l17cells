@@ -3,7 +3,7 @@
 // @name           IITC plugin: Show Level 17 Cells
 // @author         vib
 // @category       Layer
-// @version        0.1.3
+// @version        0.1.4
 // @namespace      https://github.com/vibrunazo/l17cells
 // @updateURL      https://raw.githubusercontent.com/vibrunazo/l17cells/master/l17cells.meta.js
 // @downloadURL    https://raw.githubusercontent.com/vibrunazo/l17cells/master/l17cells.user.js
@@ -32,7 +32,7 @@ function wrapper(plugin_info) {
   //PLUGIN AUTHORS: writing a plugin outside of the IITC build environment? if so, delete these lines!!
   //(leaving them in place might break the 'About IITC' page or break update checks)
   plugin_info.buildName = 'l17cells';
-  plugin_info.dateTimeVersion = '20170109.000001';
+  plugin_info.dateTimeVersion = '20170109.000004';
   plugin_info.pluginId = 'l17cells';
   //END PLUGIN AUTHORS NOTE
 
