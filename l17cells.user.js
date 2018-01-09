@@ -2,10 +2,10 @@
 // @id             iitc-plugin-l17cells@vib
 // @name           IITC plugin: Show Level 17 Cells
 // @category       Layer
-// @version        0.1
-// @namespace      https://github.com/vibrunazo/
-// @updateURL      https://github.com/vibrunazo/
-// @downloadURL    https://github.com/vibrunazo/
+// @version        0.1.1
+// @namespace      https://github.com/vibrunazo/l17cells
+// @updateURL      https://raw.githubusercontent.com/vibrunazo/l17cells/master/l17cells.meta.js
+// @downloadURL    https://raw.githubusercontent.com/vibrunazo/l17cells/master/l17cells.user.js
 // @description    [iitc-2017-01-08-021732] Shows level 17 cells on the map
 // @include        https://*.ingress.com/intel*
 // @include        http://*.ingress.com/intel*
