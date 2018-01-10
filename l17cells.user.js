@@ -1,13 +1,13 @@
 // ==UserScript==
 // @id             iitc-plugin-l17cells@vib
-// @name           IITC plugin: Show Level 17 Cells
+// @name           IITC plugin: Show S2 Level 17 Cells
 // @author         vib
 // @category       Layer
-// @version        0.1.5
+// @version        0.1.6
 // @namespace      https://github.com/vibrunazo/l17cells
 // @updateURL      https://raw.githubusercontent.com/vibrunazo/l17cells/master/l17cells.meta.js
 // @downloadURL    https://raw.githubusercontent.com/vibrunazo/l17cells/master/l17cells.user.js
-// @description    IITC: Shows level 17 cells on the map
+// @description    IITC: Shows S2 level 17 cells on the map
 // @include        https://*.ingress.com/intel*
 // @include        http://*.ingress.com/intel*
 // @match          https://*.ingress.com/intel*
@@ -18,58 +18,81 @@
 // @match          http://*.ingress.com/mission/*
 // @grant          none
 // ==/UserScript==
-
 // This plugin is a simple fork of the Regions plugin by Jonatkins
 //
 // original plugin at:
 // https://github.com/jonatkins/ingress-intel-total-conversion
-
-
-function wrapper(plugin_info) {
+function wrapper(plugin_info)
+{
   // ensure plugin framework is there, even if iitc is not yet loaded
-  if(typeof window.plugin !== 'function') window.plugin = function() {};
+  if (typeof window.plugin !== 'function') window.plugin = function() {};
 
   //PLUGIN AUTHORS: writing a plugin outside of the IITC build environment? if so, delete these lines!!
   //(leaving them in place might break the 'About IITC' page or break update checks)
   plugin_info.buildName = 'l17cells';
-  plugin_info.dateTimeVersion = '20170109.010105';
+  plugin_info.dateTimeVersion = '20170110.010106';
   plugin_info.pluginId = 'l17cells';
   //END PLUGIN AUTHORS NOTE
 
-
-
   // PLUGIN START ////////////////////////////////////////////////////////
-
+// http://jsbeautifier.org/
   // use own namespace for plugin
   window.plugin.showcells = function() {};
 
-  var input=document.createElement("input");
-  input.type="button";
-  input.value="Set Level";
-  input.onclick = setCellLevel;
-  input.setAttribute("style", "font-size:18px;position:absolute;top:120px;left:40px;color:black;cursor:pointer;pointer-events:all;z-index:2999;");
-  document.body.appendChild(input);
+  // SET THIS TO TRUE WHILE DEBUGGING
+  window.plugin.showcells.debug = false;
 
-  window.plugin.showcells.cellLevel = 17;
+  window.plugin.showcells.storage = { cellLevel: 17 };
+  window.plugin.showcells.storageKey = 'showcells-storage';
 
-  function setCellLevel()
+  // update the localStorage datas
+  window.plugin.showcells.saveStorage = function()
   {
-    var newCellLevel = prompt("Set a cell level", "17");
+    localStorage[window.plugin.showcells.storageKey] = JSON.stringify(window.plugin.showcells.storage);
+  };
+
+  // load the localStorage datas
+  window.plugin.showcells.loadStorage = function()
+  {
+    if (typeof localStorage[window.plugin.showcells.storageKey] != "undefined")
+    {
+      window.plugin.showcells.storage = JSON.parse(localStorage[window.plugin.showcells.storageKey]);
+    }
+
+    //ensure default values are always set
+    if (typeof window.plugin.showcells.storage.cellLevel == "undefined")
+    {
+      window.plugin.showcells.storage.cellLevel = 17;
+    }
+  };
+
+  window.plugin.showcells.setCellLevel = function()
+  {
+    var newCellLevel = prompt("Set a cell level", window.plugin.showcells.storage.cellLevel);
     newCellLevel = parseInt(newCellLevel, 10);
-    //alert("new cell=" + newCellLevel);
-    if (newCellLevel !== isNaN && newCellLevel >= 2 && newCellLevel <= 20) {
+    if (window.plugin.showcells.debug)
+    {
+      console.log("new cell=" + newCellLevel);
+    }
+    if (newCellLevel !== isNaN && newCellLevel >= 2 && newCellLevel <= 20)
+    {
       //alert("Valid cell value");
-      window.plugin.showcells.cellLevel = newCellLevel;
-      window.plugin.regions.update();
-    } else {
+      window.plugin.showcells.storage.cellLevel = newCellLevel;
+      window.plugin.showcells.saveStorage();
+      window.plugin.showcells.update();
+    }
+    else
+    {
       alert("Invalid cell value. Must be a number between 2 and 20");
     }
-  }
+  };
 
-  // use own namespace for plugin
-  window.plugin.regions = function() {};
+  window.plugin.showcells.setup = function()
+  {
+    window.plugin.showcells.loadStorage();
+    // Add a link to the Toolbox to change S2 Level instead of a button
+    $('#toolbox').append(' <a onclick="window.plugin.showcells.setCellLevel()" title="Change the level of S2 Cells displayed">Change S2 Level</a>');
 
-  window.plugin.regions.setup  = function() {
     /// S2 Geometry functions
     // the regional scoreboard is based on a level 6 S2 Cell
     // - https://docs.google.com/presentation/d/1Hl4KapfAENAOf4gv-pSngKwvS_jwNVHRPZTTDzXXn6Q/view?pli=1#slide=id.i22
@@ -94,142 +117,188 @@ function wrapper(plugin_info) {
     // - i,j: they always use 30 bits, adjusting as needed. we use 0 to (1<<level)-1 instead
     //        (so GetSizeIJ for a cell is always 1)
 
-    (function() {
-
+    (function()
+    {
       window.S2 = {};
 
-
-      var LatLngToXYZ = function(latLng) {
-        var d2r = Math.PI/180.0;
-
-        var phi = latLng.lat*d2r;
-        var theta = latLng.lng*d2r;
-
+      var LatLngToXYZ = function(latLng)
+      {
+        var d2r = Math.PI / 180.0;
+        var phi = latLng.lat * d2r;
+        var theta = latLng.lng * d2r;
         var cosphi = Math.cos(phi);
-
-        return [Math.cos(theta)*cosphi, Math.sin(theta)*cosphi, Math.sin(phi)];
+        return [Math.cos(theta) * cosphi, Math.sin(theta) * cosphi, Math.sin(phi)];
       };
 
-      var XYZToLatLng = function(xyz) {
-        var r2d = 180.0/Math.PI;
-
-        var lat = Math.atan2(xyz[2], Math.sqrt(xyz[0]*xyz[0]+xyz[1]*xyz[1]));
+      var XYZToLatLng = function(xyz)
+      {
+        var r2d = 180.0 / Math.PI;
+        var lat = Math.atan2(xyz[2], Math.sqrt(xyz[0] * xyz[0] + xyz[1] * xyz[1]));
         var lng = Math.atan2(xyz[1], xyz[0]);
-
-        return L.latLng(lat*r2d, lng*r2d);
+        return L.latLng(lat * r2d, lng * r2d);
       };
 
-      var largestAbsComponent = function(xyz) {
+      var largestAbsComponent = function(xyz)
+      {
         var temp = [Math.abs(xyz[0]), Math.abs(xyz[1]), Math.abs(xyz[2])];
 
-        if (temp[0] > temp[1]) {
-          if (temp[0] > temp[2]) {
+        if (temp[0] > temp[1])
+        {
+          if (temp[0] > temp[2])
+          {
             return 0;
-          } else {
-            return 2;
           }
-        } else {
-          if (temp[1] > temp[2]) {
-            return 1;
-          } else {
+          else
+          {
             return 2;
           }
         }
-
+        else
+        {
+          if (temp[1] > temp[2])
+          {
+            return 1;
+          }
+          else
+          {
+            return 2;
+          }
+        }
       };
 
-      var faceXYZToUV = function(face,xyz) {
-        var u,v;
+      var faceXYZToUV = function(face, xyz)
+      {
+        var u, v;
 
-        switch (face) {
-          case 0: u =  xyz[1]/xyz[0]; v =  xyz[2]/xyz[0]; break;
-          case 1: u = -xyz[0]/xyz[1]; v =  xyz[2]/xyz[1]; break;
-          case 2: u = -xyz[0]/xyz[2]; v = -xyz[1]/xyz[2]; break;
-          case 3: u =  xyz[2]/xyz[0]; v =  xyz[1]/xyz[0]; break;
-          case 4: u =  xyz[2]/xyz[1]; v = -xyz[0]/xyz[1]; break;
-          case 5: u = -xyz[1]/xyz[2]; v = -xyz[0]/xyz[2]; break;
-          default: throw {error: 'Invalid face'}; break;
+        switch (face)
+        {
+          case 0:
+            u = xyz[1] / xyz[0];
+            v = xyz[2] / xyz[0];
+            break;
+          case 1:
+            u = -xyz[0] / xyz[1];
+            v = xyz[2] / xyz[1];
+            break;
+          case 2:
+            u = -xyz[0] / xyz[2];
+            v = -xyz[1] / xyz[2];
+            break;
+          case 3:
+            u = xyz[2] / xyz[0];
+            v = xyz[1] / xyz[0];
+            break;
+          case 4:
+            u = xyz[2] / xyz[1];
+            v = -xyz[0] / xyz[1];
+            break;
+          case 5:
+            u = -xyz[1] / xyz[2];
+            v = -xyz[0] / xyz[2];
+            break;
+          default:
+            throw {
+              error: 'Invalid face'
+            };
+            break;
         }
 
-        return [u,v];
+        return [u, v];
       }
 
-
-
-
-      var XYZToFaceUV = function(xyz) {
+      var XYZToFaceUV = function(xyz)
+      {
         var face = largestAbsComponent(xyz);
 
-        if (xyz[face] < 0) {
+        if (xyz[face] < 0)
+        {
           face += 3;
         }
 
-        uv = faceXYZToUV (face,xyz);
-
+        uv = faceXYZToUV(face, xyz);
         return [face, uv];
       };
 
-      var FaceUVToXYZ = function(face,uv) {
+      var FaceUVToXYZ = function(face, uv)
+      {
         var u = uv[0];
         var v = uv[1];
 
-        switch (face) {
-          case 0: return [ 1, u, v];
-          case 1: return [-u, 1, v];
-          case 2: return [-u,-v, 1];
-          case 3: return [-1,-v,-u];
-          case 4: return [ v,-1,-u];
-          case 5: return [ v, u,-1];
-          default: throw {error: 'Invalid face'};
-        }
+        switch (face)
+        {
+          case 0:
+            return [1, u, v];
+          case 1:
+            return [-u, 1, v];
+          case 2:
+            return [-u, -v, 1];
+          case 3:
+            return [-1, -v, -u];
+          case 4:
+            return [v, -1, -u];
+          case 5:
+            return [v, u, -1];
+          default:
+            throw {
+              error: 'Invalid face'
+            };
+        };
       };
 
-
-      var STToUV = function(st) {
-        var singleSTtoUV = function(st) {
-          if (st >= 0.5) {
-            return (1/3.0) * (4*st*st - 1);
-          } else {
-            return (1/3.0) * (1 - (4*(1-st)*(1-st)));
+      var STToUV = function(st)
+      {
+        var singleSTtoUV = function(st)
+        {
+          if (st >= 0.5)
+          {
+            return (1 / 3.0) * (4 * st * st - 1);
+          }
+          else
+          {
+            return (1 / 3.0) * (1 - (4 * (1 - st) * (1 - st)));
           }
         };
 
         return [singleSTtoUV(st[0]), singleSTtoUV(st[1])];
       };
 
-
-
-      var UVToST = function(uv) {
-        var singleUVtoST = function(uv) {
-          if (uv >= 0) {
-            return 0.5 * Math.sqrt (1 + 3*uv);
-          } else {
-            return 1 - 0.5 * Math.sqrt (1 - 3*uv);
+      var UVToST = function(uv)
+      {
+        var singleUVtoST = function(uv)
+        {
+          if (uv >= 0)
+          {
+            return 0.5 * Math.sqrt(1 + 3 * uv);
+          }
+          else
+          {
+            return 1 - 0.5 * Math.sqrt(1 - 3 * uv);
           }
         };
 
         return [singleUVtoST(uv[0]), singleUVtoST(uv[1])];
       };
 
+      var STToIJ = function(st, order)
+      {
+        var maxSize = (1 << order);
 
-      var STToIJ = function(st,order) {
-        var maxSize = (1<<order);
-
-        var singleSTtoIJ = function(st) {
+        var singleSTtoIJ = function(st)
+        {
           var ij = Math.floor(st * maxSize);
-          return Math.max(0, Math.min(maxSize-1, ij));
+          return Math.max(0, Math.min(maxSize - 1, ij));
         };
 
         return [singleSTtoIJ(st[0]), singleSTtoIJ(st[1])];
       };
 
-
-      var IJToST = function(ij,order,offsets) {
-        var maxSize = (1<<order);
+      var IJToST = function(ij, order, offsets)
+      {
+        var maxSize = (1 << order);
 
         return [
-          (ij[0]+offsets[0])/maxSize,
-          (ij[1]+offsets[1])/maxSize
+          (ij[0] + offsets[0]) / maxSize,
+          (ij[1] + offsets[1]) / maxSize
         ];
       };
 
@@ -238,55 +307,66 @@ function wrapper(plugin_info) {
       // note: rather then calculating the final integer hilbert position, we just return the list of quads
       // this ensures no precision issues whth large orders (S3 cell IDs use up to 30), and is more
       // convenient for pulling out the individual bits as needed later
-      var pointToHilbertQuadList = function(x,y,order) {
+      var pointToHilbertQuadList = function(x, y, order)
+      {
         var hilbertMap = {
-          'a': [ [0,'d'], [1,'a'], [3,'b'], [2,'a'] ],
-          'b': [ [2,'b'], [1,'b'], [3,'a'], [0,'c'] ],
-          'c': [ [2,'c'], [3,'d'], [1,'c'], [0,'b'] ],
-          'd': [ [0,'a'], [3,'c'], [1,'d'], [2,'d'] ]
+          'a': [
+            [0, 'd'],
+            [1, 'a'],
+            [3, 'b'],
+            [2, 'a']
+          ],
+          'b': [
+            [2, 'b'],
+            [1, 'b'],
+            [3, 'a'],
+            [0, 'c']
+          ],
+          'c': [
+            [2, 'c'],
+            [3, 'd'],
+            [1, 'c'],
+            [0, 'b']
+          ],
+          'd': [
+            [0, 'a'],
+            [3, 'c'],
+            [1, 'd'],
+            [2, 'd']
+          ]
         };
 
-        var currentSquare='a';
+        var currentSquare = 'a';
         var positions = [];
 
-        for (var i=order-1; i>=0; i--) {
-
-          var mask = 1<<i;
-
-          var quad_x = x&mask ? 1 : 0;
-          var quad_y = y&mask ? 1 : 0;
-
-          var t = hilbertMap[currentSquare][quad_x*2+quad_y];
-
+        for (var i = order - 1; i >= 0; i--)
+        {
+          var mask = 1 << i;
+          var quad_x = x & mask ? 1 : 0;
+          var quad_y = y & mask ? 1 : 0;
+          var t = hilbertMap[currentSquare][quad_x * 2 + quad_y];
           positions.push(t[0]);
-
           currentSquare = t[1];
         }
 
         return positions;
       };
 
-
-
-
       // S2Cell class
-
-      S2.S2Cell = function(){};
+      S2.S2Cell = function() {};
 
       //static method to construct
-      S2.S2Cell.FromLatLng = function(latLng,level) {
-
+      S2.S2Cell.FromLatLng = function(latLng, level)
+      {
         var xyz = LatLngToXYZ(latLng);
-
         var faceuv = XYZToFaceUV(xyz);
         var st = UVToST(faceuv[1]);
-
-        var ij = STToIJ(st,level);
-
-        return S2.S2Cell.FromFaceIJ (faceuv[0], ij, level);
+        var ij = STToIJ(st, level);
+        return S2.S2Cell.FromFaceIJ(faceuv[0], ij, level);
       };
 
-      S2.S2Cell.FromFaceIJ = function(face,ij,level) {
+      S2.S2Cell.FromFaceIJ = function(face, ij, level)
+      {
         var cell = new S2.S2Cell();
         cell.face = face;
         cell.ij = ij;
@@ -295,66 +375,72 @@ function wrapper(plugin_info) {
         return cell;
       };
 
-
-      S2.S2Cell.prototype.toString = function() {
-        return 'F'+this.face+'ij['+this.ij[0]+','+this.ij[1]+']@'+this.level;
+      S2.S2Cell.prototype.toString = function()
+      {
+        return 'F' + this.face + 'ij[' + this.ij[0] + ',' + this.ij[1] + ']@' + this.level;
       };
 
-      S2.S2Cell.prototype.getLatLng = function() {
-        var st = IJToST(this.ij,this.level, [0.5,0.5]);
+      S2.S2Cell.prototype.getLatLng = function()
+      {
+        var st = IJToST(this.ij, this.level, [0.5, 0.5]);
         var uv = STToUV(st);
         var xyz = FaceUVToXYZ(this.face, uv);
 
         return XYZToLatLng(xyz);
       };
 
-      S2.S2Cell.prototype.getCornerLatLngs = function() {
+      S2.S2Cell.prototype.getCornerLatLngs = function()
+      {
         var result = [];
         var offsets = [
-          [ 0.0, 0.0 ],
-          [ 0.0, 1.0 ],
-          [ 1.0, 1.0 ],
-          [ 1.0, 0.0 ]
+          [0.0, 0.0],
+          [0.0, 1.0],
+          [1.0, 1.0],
+          [1.0, 0.0]
         ];
 
-        for (var i=0; i<4; i++) {
+        for (var i = 0; i < 4; i++)
+        {
           var st = IJToST(this.ij, this.level, offsets[i]);
           var uv = STToUV(st);
           var xyz = FaceUVToXYZ(this.face, uv);
 
-          result.push ( XYZToLatLng(xyz) );
+          result.push(XYZToLatLng(xyz));
         }
         return result;
       };
 
-
-      S2.S2Cell.prototype.getFaceAndQuads = function() {
+      S2.S2Cell.prototype.getFaceAndQuads = function()
+      {
         var quads = pointToHilbertQuadList(this.ij[0], this.ij[1], this.level);
-
-        return [this.face,quads];
+        return [this.face, quads];
       };
 
-      S2.S2Cell.prototype.getNeighbors = function() {
-
-        var fromFaceIJWrap = function(face,ij,level) {
-          var maxSize = (1<<level);
-          if (ij[0]>=0 && ij[1]>=0 && ij[0]<maxSize && ij[1]<maxSize) {
+      S2.S2Cell.prototype.getNeighbors = function()
+      {
+        var fromFaceIJWrap = function(face, ij, level)
+        {
+          var maxSize = (1 << level);
+          if (ij[0] >= 0 && ij[1] >= 0 && ij[0] < maxSize && ij[1] < maxSize)
+          {
             // no wrapping out of bounds
-            return S2.S2Cell.FromFaceIJ(face,ij,level);
-          } else {
+            return S2.S2Cell.FromFaceIJ(face, ij, level);
+          }
+          else
+          {
             // the new i,j are out of range.
             // with the assumption that they're only a little past the borders we can just take the points as
             // just beyond the cube face, project to XYZ, then re-create FaceUV from the XYZ vector
 
-            var st = IJToST(ij,level,[0.5,0.5]);
+            var st = IJToST(ij, level, [0.5, 0.5]);
             var uv = STToUV(st);
-            var xyz = FaceUVToXYZ(face,uv);
+            var xyz = FaceUVToXYZ(face, uv);
             var faceuv = XYZToFaceUV(xyz);
             face = faceuv[0];
             uv = faceuv[1];
             st = UVToST(uv);
-            ij = STToIJ(st,level);
-            return S2.S2Cell.FromFaceIJ (face, ij, level);
+            ij = STToIJ(st, level);
+            return S2.S2Cell.FromFaceIJ(face, ij, level);
           }
         };
 
@@ -363,25 +449,20 @@ function wrapper(plugin_info) {
         var j = this.ij[1];
         var level = this.level;
 
-
         return [
-          fromFaceIJWrap(face, [i-1,j], level),
-          fromFaceIJWrap(face, [i,j-1], level),
-          fromFaceIJWrap(face, [i+1,j], level),
-          fromFaceIJWrap(face, [i,j+1], level)
+          fromFaceIJWrap(face, [i - 1, j], level),
+          fromFaceIJWrap(face, [i, j - 1], level),
+          fromFaceIJWrap(face, [i + 1, j], level),
+          fromFaceIJWrap(face, [i, j + 1], level)
         ];
-
       };
-
-
     })();
 
-
-    window.plugin.regions.regionLayer = L.layerGroup();
+    window.plugin.showcells.regionLayer = L.layerGroup();
 
     $("<style>")
-    .prop("type", "text/css")
-    .html(".plugin-regions-name {\
+      .prop("type", "text/css")
+      .html(".plugin-showcells-name {\
       font-size: 14px;\
       font-weight: bold;\
       color: gold;\
@@ -390,106 +471,122 @@ function wrapper(plugin_info) {
       text-shadow: -1px -1px #000, 1px -1px #000, -1px 1px #000, 1px 1px #000, 0 0 2px #000; \
       pointer-events: none;\
     }")
-    .appendTo("head");
+      .appendTo("head");
 
-    addLayerGroup('Score Regions', window.plugin.regions.regionLayer, true);
+    addLayerGroup('S2 Cells', window.plugin.showcells.regionLayer, true);
 
-    map.on('moveend', window.plugin.regions.update);
+    map.on('moveend', window.plugin.showcells.update);
 
-    addHook('search', window.plugin.regions.search);
+    addHook('search', window.plugin.showcells.search);
 
-    window.plugin.regions.update();
+    window.plugin.showcells.update();
   };
 
-  window.plugin.regions.FACE_NAMES = [ 'AF', 'AS', 'NR', 'PA', 'AM', 'ST' ];
-  window.plugin.regions.CODE_WORDS = [
-    'ALPHA',    'BRAVO',   'CHARLIE', 'DELTA',
-    'ECHO',     'FOXTROT', 'GOLF',    'HOTEL',
-    'JULIET',   'KILO',    'LIMA',    'MIKE',
-    'NOVEMBER', 'PAPA',    'ROMEO',   'SIERRA',
+  window.plugin.showcells.FACE_NAMES = ['AF', 'AS', 'NR', 'PA', 'AM', 'ST'];
+  window.plugin.showcells.CODE_WORDS = [
+    'ALPHA', 'BRAVO', 'CHARLIE', 'DELTA',
+    'ECHO', 'FOXTROT', 'GOLF', 'HOTEL',
+    'JULIET', 'KILO', 'LIMA', 'MIKE',
+    'NOVEMBER', 'PAPA', 'ROMEO', 'SIERRA',
   ];
 
   // This regexp is quite forgiving. Dashes are allowed between all components, each dash and leading zero is optional.
   // All whitespace is removed in onSearch(). If the first or both the first and second component are omitted, they are
   // replaced with the current cell's coordinates (=the cell which contains the center point of the map). If the last
   // component is ommited, the 4x4 cell group is used.
-  window.plugin.regions.REGEXP = new RegExp('^(?:(?:(' + plugin.regions.FACE_NAMES.join('|') + ')-?)?((?:1[0-6])|(?:0?[1-9]))-?)?(' +
-  plugin.regions.CODE_WORDS.join('|') + ')(?:-?((?:1[0-5])|(?:0?\\d)))?$', 'i');
+  window.plugin.showcells.REGEXP = new RegExp('^(?:(?:(' + plugin.showcells.FACE_NAMES.join('|') + ')-?)?((?:1[0-6])|(?:0?[1-9]))-?)?(' +
+    plugin.showcells.CODE_WORDS.join('|') + ')(?:-?((?:1[0-5])|(?:0?\\d)))?$', 'i');
 
-  window.plugin.regions.regionName = function(cell) {
+  window.plugin.showcells.regionName = function(cell)
+  {
     // ingress does some odd things with the naming. for some faces, the i and j coords are flipped when converting
     // (and not only the names - but the full quad coords too!). easiest fix is to create a temporary cell with the coords
     // swapped
-    if (cell.face == 1 || cell.face == 3 || cell.face == 5) {
-      cell = S2.S2Cell.FromFaceIJ ( cell.face, [cell.ij[1], cell.ij[0]], cell.level );
+    if (cell.face == 1 || cell.face == 3 || cell.face == 5)
+    {
+      cell = S2.S2Cell.FromFaceIJ(cell.face, [cell.ij[1], cell.ij[0]], cell.level);
     }
 
     // first component of the name is the face
-    var name = window.plugin.regions.FACE_NAMES[cell.face];
+    var name = window.plugin.showcells.FACE_NAMES[cell.face];
 
-    if (cell.level >= 4) {
+    if (cell.level >= 4)
+    {
       // next two components are from the most signifitant four bits of the cell I/J
-      var regionI = cell.ij[0] >> (cell.level-4);
-      var regionJ = cell.ij[1] >> (cell.level-4);
+      var regionI = cell.ij[0] >> (cell.level - 4);
+      var regionJ = cell.ij[1] >> (cell.level - 4);
 
-      name += zeroPad(regionI+1,2)+'-'+window.plugin.regions.CODE_WORDS[regionJ];
+      name += zeroPad(regionI + 1, 2) + '-' + window.plugin.showcells.CODE_WORDS[regionJ];
     }
 
-    if (cell.level >= 6) {
+    if (cell.level >= 6)
+    {
       // the final component is based on the hibbert curve for the relevant cell
       var facequads = cell.getFaceAndQuads();
-      var number = facequads[1][4]*4+facequads[1][5];
+      var number = facequads[1][4] * 4 + facequads[1][5];
 
-      name += '-'+zeroPad(number,2);
+      name += '-' + zeroPad(number, 2);
     }
-
 
     return name;
   };
 
-  window.plugin.regions.search = function(query) {
+  window.plugin.showcells.search = function(query)
+  {
     var terms = query.term.replace(/\s+/g, '').split(/[,;]/);
-    var matches = terms.map(function(string) {
-      return string.match(window.plugin.regions.REGEXP);
+    var matches = terms.map(function(string)
+    {
+      return string.match(window.plugin.showcells.REGEXP);
     });
-    if(!matches.every(function(match) { return match !== null; })) return;
+    if (!matches.every(function(match)
+      {
+        return match !== null;
+      })) return;
 
-    var currentCell = window.plugin.regions.regionName(S2.S2Cell.FromLatLng(map.getCenter(), 6));
+    var currentCell = window.plugin.showcells.regionName(S2.S2Cell.FromLatLng(map.getCenter(), 6));
 
-    matches.forEach(function(match) {
-      if(!match[1])
-      match[1] = currentCell.substr(0, 2);
+    matches.forEach(function(match)
+    {
+      if (!match[1])
+        match[1] = currentCell.substr(0, 2);
       else
-      match[1] = match[1].toUpperCase();
+        match[1] = match[1].toUpperCase();
 
-      if(!match[2])
-      match[2] = currentCell.substr(2,2);
+      if (!match[2])
+        match[2] = currentCell.substr(2, 2);
 
       match[3] = match[3].toUpperCase();
 
-      var result = window.plugin.regions.getSearchResult(match);
-      if(result) query.addResult(result);
+      var result = window.plugin.showcells.getSearchResult(match);
+      if (result) query.addResult(result);
     });
   };
 
   // rot and d2xy from Wikipedia
-  window.plugin.regions.rot = function(n, x, y, rx, ry) {
-    if(ry == 0) {
-      if(rx == 1) {
-        x = n-1 - x;
-        y = n-1 - y;
+  window.plugin.showcells.rot = function(n, x, y, rx, ry)
+  {
+    if (ry == 0)
+    {
+      if (rx == 1)
+      {
+        x = n - 1 - x;
+        y = n - 1 - y;
       }
 
       return [y, x];
     }
     return [x, y];
   }
-  window.plugin.regions.d2xy = function(n, d) {
-    var rx, ry, s, t = d, xy = [0, 0];
-    for(s=1; s<n; s*=2) {
-      rx = 1 & (t/2);
+
+  window.plugin.showcells.d2xy = function(n, d)
+  {
+    var rx, ry, s, t = d,
+      xy = [0, 0];
+    for (s = 1; s < n; s *= 2)
+    {
+      rx = 1 & (t / 2);
       ry = 1 & (t ^ rx);
-      xy = window.plugin.regions.rot(s, xy[0], xy[1], rx, ry);
+      xy = window.plugin.showcells.rot(s, xy[0], xy[1], rx, ry);
       xy[0] += s * rx;
       xy[1] += s * ry;
       t /= 4;
@@ -497,124 +594,167 @@ function wrapper(plugin_info) {
     return xy;
   };
 
-  window.plugin.regions.getSearchResult = function(match) {
-    var faceId = window.plugin.regions.FACE_NAMES.indexOf(match[1]);
+  window.plugin.showcells.getSearchResult = function(match)
+  {
+    var faceId = window.plugin.showcells.FACE_NAMES.indexOf(match[1]);
     var id1 = parseInt(match[2]);
-    var codeWordId = window.plugin.regions.CODE_WORDS.indexOf(match[3]);
+    var codeWordId = window.plugin.showcells.CODE_WORDS.indexOf(match[3]);
     var id2 = match[4] === undefined ? undefined : parseInt(match[4]);
 
-    if(faceId === -1 || id1 < 1 && id1 > 16 || codeWordId === -1 || id2 < 0 || id2 > 15) return;
+    if (faceId === -1 || id1 < 1 && id1 > 16 || codeWordId === -1 || id2 < 0 || id2 > 15) return;
 
     // looks good. now we need the face/i/j values for this cell
 
     // face is used as-is
 
     // id1 is the region 'i' value (first 4 bits), codeword is the 'j' value (first 4 bits)
-    var regionI = id1-1;
+    var regionI = id1 - 1;
     var regionJ = codeWordId;
 
-    var result = {}, level;
+    var result = {},
+      level;
 
-    if(id2 === undefined) {
+    if (id2 === undefined)
+    {
       result.description = 'Regional score cells (cluster of 16 cells)';
-      result.icon = 'data:image/svg+xml;base64,'+btoa('<svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" version="1.1">\n	<path style="fill:orange;stroke:none" d="M 1,3.5 9,0 11,8.5 3,12 z"/>\n</svg>\n'.replace(/orange/, 'gold'));
+      result.icon = 'data:image/svg+xml;base64,' + btoa('<svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" version="1.1">\n	<path style="fill:orange;stroke:none" d="M 1,3.5 9,0 11,8.5 3,12 z"/>\n</svg>\n'.replace(/orange/, 'gold'));
       level = 4;
-    } else {
+    }
+    else
+    {
       result.description = 'Regional score cell';
-      result.icon = 'data:image/svg+xml;base64,'+btoa('<svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" version="1.1">\n	<path style="fill:orange;stroke:none" d="M 1,3.5 9,0 11,8.5 3,12 z"/>\n</svg>\n');
+      result.icon = 'data:image/svg+xml;base64,' + btoa('<svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" version="1.1">\n	<path style="fill:orange;stroke:none" d="M 1,3.5 9,0 11,8.5 3,12 z"/>\n</svg>\n');
       level = 6;
 
-      var xy = window.plugin.regions.d2xy(4, id2);
+      var xy = window.plugin.showcells.d2xy(4, id2);
       regionI = (regionI << 2) + xy[0];
       regionJ = (regionJ << 2) + xy[1];
     }
 
     // as in the name-construction above, for odd numbered faces, the I and J need swapping
-    var cell = (faceId % 2 == 1)
-    ? S2.S2Cell.FromFaceIJ(faceId, [regionJ,regionI], level)
-    : S2.S2Cell.FromFaceIJ(faceId, [regionI,regionJ], level);
+    var cell = (faceId % 2 == 1) ?
+      S2.S2Cell.FromFaceIJ(faceId, [regionJ, regionI], level) :
+      S2.S2Cell.FromFaceIJ(faceId, [regionI, regionJ], level);
 
     var corners = cell.getCornerLatLngs();
 
-    result.title = window.plugin.regions.regionName(cell);
-    result.layer = L.geodesicPolygon(corners, { fill: false, color: 'red', clickable: false });
+    result.title = window.plugin.showcells.regionName(cell);
+    result.layer = L.geodesicPolygon(corners,
+    {
+      fill: false,
+      color: 'red',
+      clickable: false
+    });
     result.bounds = L.latLngBounds(corners);
 
     return result;
   };
 
-  window.plugin.regions.update = function() {
-
-    window.plugin.regions.regionLayer.clearLayers();
+  window.plugin.showcells.update = function()
+  {
+    try
+    {
+      window.plugin.showcells.regionLayer.clearLayers();
+    }
+    catch (err)
+    {
+      if (window.plugin.showcells.debug)
+      {
+        console.log('Error while clearing old boxes: ' + err.message)
+      }
+    }
 
     var bounds = map.getBounds();
-
     var seenCells = {};
 
-    var drawCellAndNeighbors = function(cell) {
+    var drawCellAndNeighbors = function(cell)
+    {
       var cellStr = cell.toString();
 
-      if (!seenCells[cellStr]) {
+      if (!seenCells[cellStr])
+      {
         // cell not visited - flag it as visited now
         seenCells[cellStr] = true;
 
         // is it on the screen?
         var corners = cell.getCornerLatLngs();
-        var cellBounds = L.latLngBounds([corners[0],corners[1]]).extend(corners[2]).extend(corners[3]);
+        var cellBounds = L.latLngBounds([corners[0], corners[1]]).extend(corners[2]).extend(corners[3]);
 
-        if (cellBounds.intersects(bounds)) {
+        if (cellBounds.intersects(bounds))
+        {
           // on screen - draw it
-          window.plugin.regions.drawCell(cell);
+          window.plugin.showcells.drawCell(cell);
 
           // and recurse to our neighbors
           var neighbors = cell.getNeighbors();
-          for (var i=0; i<neighbors.length; i++) {
+          for (var i = 0; i < neighbors.length; i++)
+          {
             drawCellAndNeighbors(neighbors[i]);
           }
         }
       }
-
     };
 
     // centre cell
     var zoom = map.getZoom();
     var maxzoom = 16;
-    if (window.plugin.showcells.cellLevel <= 14) maxzoom = 10;
-    if (window.plugin.showcells.cellLevel <= 8) maxzoom = 5;
-    if (zoom >= maxzoom) {  // 5 // ;;;;
+    if (window.plugin.showcells.storage.cellLevel <= 14) maxzoom = 10;
+    if (window.plugin.showcells.storage.cellLevel <= 8) maxzoom = 5;
+    if (zoom >= maxzoom)
+    { // 5 // ;;;;
       // var cellSize = zoom>=7 ? 6 : 4;  // ;;;;vib
-      var cellSize = window.plugin.showcells.cellLevel;
-      var cell = S2.S2Cell.FromLatLng ( map.getCenter(), cellSize );
+      var cellSize = window.plugin.showcells.storage.cellLevel;
+      var cell = S2.S2Cell.FromLatLng(map.getCenter(), cellSize);
 
       drawCellAndNeighbors(cell);
     }
 
 
     // the six cube side boundaries. we cheat by hard-coding the coords as it's simple enough
-    var latLngs = [ [45,-180], [35.264389682754654,-135], [35.264389682754654,-45], [35.264389682754654,45], [35.264389682754654,135], [45,180]];
+    var latLngs = [
+      [45, -180],
+      [35.264389682754654, -135],
+      [35.264389682754654, -45],
+      [35.264389682754654, 45],
+      [35.264389682754654, 135],
+      [45, 180]
+    ];
 
-    var globalCellOptions = {color: 'red', weight: 7, opacity: 0.5, clickable: false };
+    var globalCellOptions = {
+      color: 'red',
+      weight: 7,
+      opacity: 0.5,
+      clickable: false
+    };
 
-    for (var i=0; i<latLngs.length-1; i++) {
+    for (var i = 0; i < latLngs.length - 1; i++)
+    {
       // the geodesic line code can't handle a line/polyline spanning more than (or close to?) 180 degrees, so we draw
       // each segment as a separate line
-      var poly1 = L.geodesicPolyline ( [latLngs[i], latLngs[i+1]], globalCellOptions );
-      window.plugin.regions.regionLayer.addLayer(poly1);
+      var poly1 = L.geodesicPolyline([latLngs[i], latLngs[i + 1]], globalCellOptions);
+      window.plugin.showcells.regionLayer.addLayer(poly1);
 
       //southern mirror of the above
-      var poly2 = L.geodesicPolyline ( [[-latLngs[i][0],latLngs[i][1]], [-latLngs[i+1][0], latLngs[i+1][1]]], globalCellOptions );
-      window.plugin.regions.regionLayer.addLayer(poly2);
+      var poly2 = L.geodesicPolyline([
+        [-latLngs[i][0], latLngs[i][1]],
+        [-latLngs[i + 1][0], latLngs[i + 1][1]]
+      ], globalCellOptions);
+      window.plugin.showcells.regionLayer.addLayer(poly2);
     }
 
     // and the north-south lines. no need for geodesic here
-    for (var i=-135; i<=135; i+=90) {
-      var poly = L.polyline ( [[35.264389682754654,i], [-35.264389682754654,i]], globalCellOptions );
-      window.plugin.regions.regionLayer.addLayer(poly);
+    for (var i = -135; i <= 135; i += 90)
+    {
+      var poly = L.polyline([
+        [35.264389682754654, i],
+        [-35.264389682754654, i]
+      ], globalCellOptions);
+      window.plugin.showcells.regionLayer.addLayer(poly);
     }
   }
 
-  window.plugin.regions.drawCell = function(cell) {
-
+  window.plugin.showcells.drawCell = function(cell)
+  {
     //TODO: move to function - then call for all cells on screen
 
     // corner points
@@ -624,62 +764,76 @@ function wrapper(plugin_info) {
     var center = cell.getLatLng();
 
     // name
-    var name = window.plugin.regions.regionName(cell);
-
+    var name = window.plugin.showcells.regionName(cell);
 
     var color = cell.level == 6 ? 'gold' : 'orange';
 
     // the level 6 cells have noticible errors with non-geodesic lines - and the larger level 4 cells are worse
     // NOTE: we only draw two of the edges. as we draw all cells on screen, the other two edges will either be drawn
     // from the other cell, or be off screen so we don't care
-    var region = L.geodesicPolyline([corners[0],corners[1],corners[2]], {fill: false, color: color, opacity: 0.5, weight: 5, clickable: false });
+    var region = L.geodesicPolyline([corners[0], corners[1], corners[2]],
+    {
+      fill: false,
+      color: color,
+      opacity: 0.5,
+      weight: 5,
+      clickable: false
+    });
 
-    window.plugin.regions.regionLayer.addLayer(region);
+    window.plugin.showcells.regionLayer.addLayer(region);
 
     // move the label if we're at a high enough zoom level and it's off screen
-    if (map.getZoom() >= 9) {
+    if (map.getZoom() >= 9)
+    {
       var namebounds = map.getBounds().pad(-0.1); // pad 10% inside the screen bounds
-      if (!namebounds.contains(center)) {
+      if (!namebounds.contains(center))
+      {
         // name is off-screen. pull it in so it's inside the bounds
         var newlat = Math.max(Math.min(center.lat, namebounds.getNorth()), namebounds.getSouth());
         var newlng = Math.max(Math.min(center.lng, namebounds.getEast()), namebounds.getWest());
 
-        var newpos = L.latLng(newlat,newlng);
+        var newpos = L.latLng(newlat, newlng);
 
         // ensure the new position is still within the same cell
-        var newposcell = S2.S2Cell.FromLatLng ( newpos, 6 );
-        if ( newposcell.toString() == cell.toString() ) {
-          center=newpos;
+        var newposcell = S2.S2Cell.FromLatLng(newpos, 6);
+        if (newposcell.toString() == cell.toString())
+        {
+          center = newpos;
         }
         // else we leave the name where it was - offscreen
       }
     }
 
-    var marker = L.marker(center, {
-      icon: L.divIcon({
-        className: 'plugin-regions-name',
-        iconAnchor: [100,5],
-        iconSize: [200,10],
+    var marker = L.marker(center,
+    {
+      icon: L.divIcon(
+      {
+        className: 'plugin-showcells-name',
+        iconAnchor: [100, 5],
+        iconSize: [200, 10],
         html: name,
       })
     });
-    //window.plugin.regions.regionLayer.addLayer(marker);  // ;;;;vib
+    //window.plugin.showcells.regionLayer.addLayer(marker);  // ;;;;vib
   };
 
-  var setup =  window.plugin.regions.setup;
-
+  var setup = window.plugin.showcells.setup;
   // PLUGIN END //////////////////////////////////////////////////////////
 
-
   setup.info = plugin_info; //add the script info data to the function as a property
-  if(!window.bootPlugins) window.bootPlugins = [];
+  if (!window.bootPlugins) window.bootPlugins = [];
   window.bootPlugins.push(setup);
   // if IITC has already booted, immediately run the 'setup' function
-  if(window.iitcLoaded && typeof setup === 'function') setup();
+  if (window.iitcLoaded && typeof setup === 'function') setup();
 } // wrapper end
+
 // inject code into site context
 var script = document.createElement('script');
 var info = {};
-if (typeof GM_info !== 'undefined' && GM_info && GM_info.script) info.script = { version: GM_info.script.version, name: GM_info.script.name, description: GM_info.script.description };
-script.appendChild(document.createTextNode('('+ wrapper +')('+JSON.stringify(info)+');'));
+if (typeof GM_info !== 'undefined' && GM_info && GM_info.script) info.script = {
+  version: GM_info.script.version,
+  name: GM_info.script.name,
+  description: GM_info.script.description
+};
+script.appendChild(document.createTextNode('(' + wrapper + ')(' + JSON.stringify(info) + ');'));
 (document.body || document.head || document.documentElement).appendChild(script);
